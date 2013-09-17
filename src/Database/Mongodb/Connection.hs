@@ -1,10 +1,10 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Database.Mongodb.Connection
-	( MongodbHost, MongodbPort
-	, MongodbConnectionInfo(..)
-	, MongodbConnection(..)
-	, mongodbConnect, mongodbClose
+	( Host, Port
+	, ConnectionInfo(..)
+	, Connection(..)
+	, Connect, Close
 	, withMonodbConnection
 	) where
 
@@ -15,31 +15,31 @@ import Control.Monad.Catch (MonadCatch, bracket)
 import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Network.Socket as Socket
 
-import Database.Mongodb.Internal (StrictByteString)
+import Database..Internal (StrictByteString)
 
-type MongodbHost = StrictByteString
-type MongodbPort = Word16
+type Host = StrictByteString
+type Port = Word16
 
-data MongodbConnectionInfo = MongodbConnectionInfoInet {-# UNPACK #-} !MongodbHost {-# UNPACK #-} !MongodbPort
-						   | MongodbConnectionInfoUnix {-# UNPACK #-} !StrictByteString
+data ConnectionInfo = ConnectionInfoInet {-# UNPACK #-} !Host {-# UNPACK #-} !Port
+				    | ConnectionInfoUnix {-# UNPACK #-} !StrictByteString
 
-data MongodbConnection = MongodbConnection Socket.Socket
+data Connection = Connection Socket.Socket
 
-mongodbConnect :: MongodbConnectionInfo -> IO MongodbConnection
-mongodbConnect (MongodbConnectionInfoInet host port) = do
+connect :: ConnectionInfo -> IO Connection
+connect (ConnectionInfoInet host port) = do
 	(Socket.AddrInfo { .. }:_) <- Socket.getAddrInfo Nothing
 													 (Just $ StrictByteString.unpack host)
 													 (Just $ show port)
 	socket <- Socket.socket addrFamily addrSocketType addrProtocol
 	Socket.connect socket addrAddress
-	return $ MongodbConnection socket
-mongodbConnect (MongodbConnectionInfoUnix path) = do
+	return $ Connection socket
+connect (ConnectionInfoUnix path) = do
 	socket <- Socket.socket Socket.AF_UNIX Socket.Stream Socket.defaultProtocol
 	Socket.connect socket $ Socket.SockAddrUnix $ StrictByteString.unpack path
-	return $ MongodbConnection socket
+	return $ Connection socket
 
-mongodbClose :: MongodbConnection -> IO ()
-mongodbClose (MongodbConnection socket) = Socket.close socket
+close :: Connection -> IO ()
+close (Connection socket) = Socket.close socket
 
-withMonodbConnection :: (MonadCatch m, MonadIO m) => MongodbConnectionInfo -> (MongodbConnection -> m a) -> m a
-withMonodbConnection info = bracket (liftIO $ mongodbConnect info) (liftIO . mongodbClose)
+withConnection :: (MonadCatch m, MonadIO m) => ConnectionInfo -> (Connection -> m a) -> m a
+withConnection info = bracket (liftIO $ connect info) (liftIO . close)
