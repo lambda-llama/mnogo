@@ -39,7 +39,7 @@ mongodbConnect (MongodbConnectionInfoUnix path) = do
 	return $ MongodbConnection socket
 
 mongodbClose :: MongodbConnection -> IO ()
-mongodbClose = error "mongodbClose: not implemented"
+mongodbClose (MongodbConnection socket) = Socket.close socket
 
 withMonodbConnection :: (MonadCatch m, MonadIO m) => MongodbConnectionInfo -> (MongodbConnection -> m a) -> m a
 withMonodbConnection info = bracket (liftIO $ mongodbConnect info) (liftIO . mongodbClose)
