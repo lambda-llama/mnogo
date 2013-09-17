@@ -16,8 +16,8 @@ import Database.Mongodb.Internal (StrictByteString)
 type MongodbHost = StrictByteString
 type MongodbPort = Word16
 
-data MongodbConnectionInfo = MongodbConnectionInfoInet MongodbHost MongodbPort
-						   | MongodbConnectionInfoUnix StrictByteString
+data MongodbConnectionInfo = MongodbConnectionInfoInet {-# UNPACK #-} !MongodbHost {-# UNPACK #-} !MongodbPort
+						   | MongodbConnectionInfoUnix {-# UNPACK #-} !StrictByteString
 
 data MongodbConnection = MongodbConnection
 
