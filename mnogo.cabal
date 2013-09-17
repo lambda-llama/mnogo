@@ -21,8 +21,9 @@ Library
 
     Build-depends:
         base                       >= 4.5.0 && <= 4.8
+      , bresson                    == 0.0.*
 
-    Exposed-modules: 
+    Exposed-modules:
         Database.Mongodb
 
 Test-suite hen-tests
@@ -33,6 +34,8 @@ Test-suite hen-tests
 
     Build-depends:
         base                       >= 4.5.0 && <= 4.8
+      , bresson                    == 0.0.*
+
       , tasty                      == 0.3.*
 
 Source-repository head
