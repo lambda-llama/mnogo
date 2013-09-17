@@ -8,7 +8,7 @@ Author:             Fedor Gogolev <knsd@knsd.net>
 Maintainer:         Fedor Gogolev <knsd@knsd.net>
 Homepage:           https://github.com/lambda-llama/mnogo
 Bug-reports:        https://github.com/lambda-llama/mnogo
-Category:           System
+Category:           Database
 Stability:          Alpha
 Build-type:         Simple
 Cabal-version:      >= 1.12
