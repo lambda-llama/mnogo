@@ -1,7 +1,14 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Database.Mongodb.Protocol () where
 
+import Data.Int (Int32, Int64)
+
+import Data.BitSet (BitSet)
+import Data.Bson (Document, )
+import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Vector.Unboxed (Unbox)
 import qualified Data.Vector.Generic.Base as GenericBaseVector
@@ -15,23 +22,30 @@ type UnboxedVector = UnboxedVector.Vector
 type UnboxedMutableVector = UnboxedVector.MVector
 
 newtype Selector = Selector { unSelector :: Document }
+  deriving (Eq, Show)
 
-newtype Skip = Skip { unSkip :: Word32 }
-newtype Return = Return { unReturn :: Word32 }
+newtype UpdateSpec = UpdateSpec { unUpdateSpec :: Document }
+  deriving (Eq, Show)
+
+newtype Skip = Skip { unSkip :: Int32 }
+  deriving (Eq, Show)
+
+newtype Return = Return { unReturn :: Int32 }
+  deriving (Eq, Show)
 
 newtype FullCollection = FullCollection { unFullCollection :: Text }
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
-newtype CursorId = CursorId { unCursorId :: Word64 }
-  deriving (Eq, Ord, Show, GenericBaseVector UnboxedVector,
+newtype CursorId = CursorId { unCursorId :: Int64 }
+  deriving (Eq, Show, GenericBaseVector UnboxedVector,
             GenericMutableVector UnboxedMutableVector, Unbox)
 
 data UpdateFlag = Upsert
                 | MultiUpdate
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show, Enum)
 
 data InsertFlag = ContinueOnError
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show, Enum)
 
 data QueryFlag = TailableCursor
                | SlaveOk
@@ -40,22 +54,30 @@ data QueryFlag = TailableCursor
                | AwaitData
                | Exhaust
                | Partial
+  deriving (Eq, Show, Enum)
 
 data DeleteFlag = SingleRemove
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show, Enum)
+
+data ReplyFlag = CursorNotFound
+               | QueryFailure
+               | ShardConfigStale
+               | AwaitCapable
+  deriving (Eq, Show, Enum)
 
 type UpdateFlags = BitSet UpdateFlag
 type InsertFlags = BitSet InsertFlag
-type QueryFlags = BitSet QueryFlags
+type QueryFlags = BitSet QueryFlag
 type DeleteFlags = BitSet DeleteFlag
+type ReplyFlags = BitSet ReplyFlag
 
-data Request = Update !FullCollection !UpdateFlags !Selector !Update
+data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
              | Insert !FullCollection !InsertFlags !(Vector Document)
              | Query !FullCollection !QueryFlags !Skip !Return !Selector
-             | GetMore !FullCollection !Word32 !CursorId
+             | GetMore !FullCollection !Int32 !CursorId
              | Delete !FullCollection !DeleteFlags !Selector
              | KillCursors !(UnboxedVector CursorId)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)
 
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Show)

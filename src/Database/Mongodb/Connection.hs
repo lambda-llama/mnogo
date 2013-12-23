@@ -4,18 +4,17 @@ module Database.Mongodb.Connection
   ( Host, Port
   , ConnectionInfo(..)
   , Connection(..)
-  , Connect, Close
-  , withMonodbConnection
+  , connect, close
+  , withConnection
   ) where
 
+import Control.Exception (bracket)
 import Data.Word (Word16)
 import qualified Data.ByteString.Char8 as StrictByteString
 
-import Control.Monad.Catch (MonadCatch, bracket)
-import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Network.Socket as Socket
 
-import Database..Internal (StrictByteString)
+import Database.Mongodb.Internal (StrictByteString)
 
 type Host = StrictByteString
 type Port = Word16
