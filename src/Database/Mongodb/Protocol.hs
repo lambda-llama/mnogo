@@ -174,5 +174,5 @@ getReplyMessage = do
   s <- fmap Skip getInt32
   r <- fmap Return getInt32
   ds <- Vector.replicateM (fromIntegral r) getDocument
-  return $! Reply f i s r ds
+  return $ Reply f i s r ds
 {-# INLINE getReplyMessage #-}
