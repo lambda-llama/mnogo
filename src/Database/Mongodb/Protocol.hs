@@ -155,6 +155,7 @@ putRequestMessage counter rq = do
     putInt32 requestId
     putInt32 0
     putLazyByteString bytes
+{-# INLINE putRequestMessage #-}
 
 getReply :: Get Reply
 getReply = do
