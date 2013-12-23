@@ -153,7 +153,8 @@ putRequestMessage counter rq = do
   requestId <- newRequestId counter
   return $! do
     let bytes = runPut $ putRequest rq
-    putInt64 $ 4 + 4 + 4 + LazyByteString.length bytes
+    -- Size of message header and body
+    putInt64 $ 8 + 4 + 4 + LazyByteString.length bytes
     putInt32 requestId
     putInt32 0
     putLazyByteString bytes
