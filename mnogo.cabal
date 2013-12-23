@@ -24,9 +24,11 @@ Library
     Build-depends:
         base                       >= 4.5.0 && <= 4.8
       , bytestring                 == 0.9.* || == 0.10.*
+      , random                     == 1.0.*
       , network                    == 2.4.*
       , mtl                        == 2.1.*
       , text                       == 0.11.*
+      , word24                     == 1.0.*
       , bresson                    == 0.0.*
       , bitset                     == 1.4.*
       , binary                     == 0.5.*
