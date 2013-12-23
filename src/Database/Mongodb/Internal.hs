@@ -41,4 +41,4 @@ newObjectId (ObjectIdCounter counterRef) = do
   objectIdTime <- fmap truncate getPOSIXTime
   objectIdPid <- fmap fromIntegral getProcessID
   objectIdMachine <- return 0
-  return $ ObjectId { .. }
+  return $! ObjectId { .. }
