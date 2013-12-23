@@ -1,0 +1,8 @@
+#define OP_REPLY 1
+
+#define OP_UPDATE 2001
+#define OP_INSERT 2002
+#define OP_QUERY 2004
+#define OP_GET_MORE 2005
+#define OP_DELETE 2006
+#define OP_KILL_CURSORS 2007
