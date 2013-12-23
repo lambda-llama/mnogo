@@ -10,9 +10,10 @@ module Database.Mongodb.Protocol () where
 import Data.Int (Int32, Int64)
 
 import Data.Binary.Put (Put, putWord32le, putWord64le)
+import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
 import Data.Bson (Document)
-import Data.Bson.Binary (putCString, putDocument)
+import Data.Bson.Binary (putCString, putDocument, getDocument)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Vector.Unboxed (Unbox)
@@ -34,10 +35,10 @@ newtype UpdateSpec = UpdateSpec { unUpdateSpec :: Document }
   deriving (Eq, Show)
 
 newtype Skip = Skip { unSkip :: Int32 }
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
 
 newtype Return = Return { unReturn :: Int32 }
-  deriving (Eq, Show)
+  deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
 
 newtype FullCollection = FullCollection { unFullCollection :: Text }
   deriving (Eq, Show)
@@ -88,6 +89,14 @@ data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
   deriving (Eq, Show)
 
+getInt32 :: Get Int32
+getInt32 = fmap fromIntegral getWord32le
+{-# INLINE getInt32 #-}
+
+getInt64 :: Get Int64
+getInt64 = fmap fromIntegral getWord64le
+{-# INLINE getInt64 #-}
+
 putInt32 :: Int32 -> Put
 putInt32 = putWord32le . fromIntegral
 {-# INLINE putInt32 #-}
@@ -133,3 +142,13 @@ putRequest (KillCursors is) = do
   putInt32 $ fromIntegral $ UnboxedVector.length is
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
+
+getReply :: Get Reply
+getReply = do
+  f <- fmap BitSet $ getInt32
+  i <- fmap CursorId $ getInt64
+  s <- fmap Skip getInt32
+  r <- fmap Return getInt32
+  ds <- Vector.replicateM (fromIntegral r) getDocument
+  return $! Reply f i s r ds
+{-# INLINE getReply #-}
