@@ -6,6 +6,7 @@ module Database.Mongodb.Internal
   , ObjectIdCounter(..)
   , newRequestIdCounter
   , newObjectIdCounter
+  , newRequestId
   , newObjectId
   ) where
 
@@ -34,6 +35,9 @@ newRequestIdCounter = fmap RequestIdCounter $ newIORef 0
 
 newObjectIdCounter :: IO ObjectIdCounter
 newObjectIdCounter = fmap ObjectIdCounter $ randomIO >>= newIORef
+
+newRequestId :: RequestIdCounter -> IO Int32
+newRequestId (RequestIdCounter counterRef) = atomicModifyIORef' counterRef $ \r -> (r + 1, r)
 
 newObjectId :: ObjectIdCounter -> IO ObjectId
 newObjectId (ObjectIdCounter counterRef) = do
