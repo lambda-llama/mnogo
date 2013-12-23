@@ -8,8 +8,9 @@ module Database.Mongodb.Protocol () where
 #include "protocol.h"
 
 import Data.Int (Int32, Int64)
+import qualified Data.ByteString.Lazy as LazyByteString
 
-import Data.Binary.Put (Put, putWord32le, putWord64le)
+import Data.Binary.Put (Put, runPut, putWord32le, putWord64le, putLazyByteString)
 import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
 import Data.Bson (Document)
@@ -21,6 +22,8 @@ import qualified Data.Vector as Vector
 import qualified Data.Vector.Generic.Base as GenericBaseVector
 import qualified Data.Vector.Generic.Mutable as GenericMutableVector
 import qualified Data.Vector.Unboxed as UnboxedVector
+
+import Database.Mongodb.Internal (RequestIdCounter, newRequestId)
 
 type GenericBaseVector = GenericBaseVector.Vector
 type GenericMutableVector = GenericMutableVector.MVector
@@ -142,6 +145,16 @@ putRequest (KillCursors is) = do
   putInt32 $ fromIntegral $ UnboxedVector.length is
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
+
+putRequestMessage :: RequestIdCounter -> Request -> IO Put
+putRequestMessage counter rq = do
+  requestId <- newRequestId counter
+  return $! do
+    let bytes = runPut $ putRequest rq
+    putInt64 $ 4 + 4 + 4 + LazyByteString.length bytes
+    putInt32 requestId
+    putInt32 0
+    putLazyByteString bytes
 
 getReply :: Get Reply
 getReply = do
