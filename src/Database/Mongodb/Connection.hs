@@ -1,12 +1,12 @@
 {-# LANGUAGE RecordWildCards #-}
 
 module Database.Mongodb.Connection
-	( Host, Port
-	, ConnectionInfo(..)
-	, Connection(..)
-	, Connect, Close
-	, withMonodbConnection
-	) where
+  ( Host, Port
+  , ConnectionInfo(..)
+  , Connection(..)
+  , Connect, Close
+  , withMonodbConnection
+  ) where
 
 import Data.Word (Word16)
 import qualified Data.ByteString.Char8 as StrictByteString
@@ -21,25 +21,25 @@ type Host = StrictByteString
 type Port = Word16
 
 data ConnectionInfo = ConnectionInfoInet {-# UNPACK #-} !Host {-# UNPACK #-} !Port
-				    | ConnectionInfoUnix {-# UNPACK #-} !StrictByteString
+                    | ConnectionInfoUnix {-# UNPACK #-} !StrictByteString
 
 data Connection = Connection Socket.Socket
 
 connect :: ConnectionInfo -> IO Connection
 connect (ConnectionInfoInet host port) = do
-	(Socket.AddrInfo { .. }:_) <- Socket.getAddrInfo Nothing
-													 (Just $ StrictByteString.unpack host)
-													 (Just $ show port)
-	socket <- Socket.socket addrFamily addrSocketType addrProtocol
-	Socket.connect socket addrAddress
-	return $ Connection socket
+  (Socket.AddrInfo { .. }:_) <- Socket.getAddrInfo Nothing
+                           (Just $ StrictByteString.unpack host)
+                           (Just $ show port)
+  socket <- Socket.socket addrFamily addrSocketType addrProtocol
+  Socket.connect socket addrAddress
+  return $ Connection socket
 connect (ConnectionInfoUnix path) = do
-	socket <- Socket.socket Socket.AF_UNIX Socket.Stream Socket.defaultProtocol
-	Socket.connect socket $ Socket.SockAddrUnix $ StrictByteString.unpack path
-	return $ Connection socket
+  socket <- Socket.socket Socket.AF_UNIX Socket.Stream Socket.defaultProtocol
+  Socket.connect socket $ Socket.SockAddrUnix $ StrictByteString.unpack path
+  return $ Connection socket
 
 close :: Connection -> IO ()
 close (Connection socket) = Socket.close socket
 
-withConnection :: (MonadCatch m, MonadIO m) => ConnectionInfo -> (Connection -> m a) -> m a
-withConnection info = bracket (liftIO $ connect info) (liftIO . close)
+withConnection :: ConnectionInfo -> (Connection -> IO a) -> IO a
+withConnection info = bracket (connect info) close
