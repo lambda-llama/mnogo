@@ -1,16 +1,22 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Database.Mongodb.Internal
   ( StrictByteString
   , RequestIdCounter(..)
   , ObjectIdCounter(..)
   , newRequestIdCounter
   , newObjectIdCounter
+  , newObjectId
   ) where
 
 import Data.Int (Int32)
-import Data.IORef (IORef, newIORef)
+import Data.IORef (IORef, newIORef, atomicModifyIORef')
+import Data.Time.Clock.POSIX (getPOSIXTime)
+import System.Posix.Process (getProcessID)
 import System.Random (Random(..), randomIO)
 import qualified Data.ByteString.Char8 as StrictByteString
 
+import Data.Bson (ObjectId(..))
 import Data.Word.Word24 (Word24)
 
 type StrictByteString = StrictByteString.ByteString
@@ -28,3 +34,11 @@ newRequestIdCounter = fmap RequestIdCounter $ newIORef 0
 
 newObjectIdCounter :: IO ObjectIdCounter
 newObjectIdCounter = fmap ObjectIdCounter $ randomIO >>= newIORef
+
+newObjectId :: ObjectIdCounter -> IO ObjectId
+newObjectId (ObjectIdCounter counterRef) = do
+  objectIdInc <- atomicModifyIORef' counterRef $ \r -> (r + 1, r)
+  objectIdTime <- fmap truncate getPOSIXTime
+  objectIdPid <- fmap fromIntegral getProcessID
+  objectIdMachine <- return 0
+  return $ ObjectId { .. }
