@@ -7,7 +7,9 @@ module Database.Mongodb.Protocol () where
 
 #include "protocol.h"
 
+import Control.Monad (unless, void)
 import Data.Int (Int32, Int64)
+import Data.Monoid ((<>))
 import qualified Data.ByteString.Lazy as LazyByteString
 
 import Data.Binary.Put (Put, runPut, putWord32le, putWord64le, putLazyByteString)
@@ -157,12 +159,20 @@ putRequestMessage counter rq = do
     putLazyByteString bytes
 {-# INLINE putRequestMessage #-}
 
-getReply :: Get Reply
-getReply = do
+getReplyMessage :: Get Reply
+getReplyMessage = do
+  -- Message header
+  void $ getInt64
+  void $ getInt32
+  responseId <- getInt32
+  opCode <- getInt32
+  unless (opCode == OP_REPLY) $ fail $ "Expected OP_REPLY, got " <> show opCode
+
+  -- Message body
   f <- fmap BitSet $ getInt32
   i <- fmap CursorId $ getInt64
   s <- fmap Skip getInt32
   r <- fmap Return getInt32
   ds <- Vector.replicateM (fromIntegral r) getDocument
   return $! Reply f i s r ds
-{-# INLINE getReply #-}
+{-# INLINE getReplyMessage #-}
