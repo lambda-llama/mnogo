@@ -166,7 +166,7 @@ getReplyMessage = do
   void $ getInt32
   responseId <- getInt32
   opCode <- getInt32
-  unless (opCode == OP_REPLY) $ fail $ "Expected OP_REPLY, got " <> show opCode
+  unless (opCode == OP_REPLY) $ fail $ "getReplyMessage: Expected OP_REPLY, got " <> show opCode
 
   -- Message body
   f <- fmap BitSet $ getInt32
