@@ -4,13 +4,19 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
-module Database.Mongodb.Protocol () where
+module Database.Mongodb.Protocol
+    ( Request
+    , RequestId
+    , Reply
+    , ReplyId
+    , getInt32
+    , getReply
+    , putRequestMessage
+    ) where
 
 #include "protocol.h"
 
-import Control.Monad (unless, void)
 import Data.Int (Int32, Int64)
-import Data.Monoid ((<>))
 import qualified Data.ByteString.Lazy as LazyByteString
 
 import Data.Binary.Put (Put, runPut, putWord32le, putWord64le, putLazyByteString)
@@ -25,8 +31,6 @@ import qualified Data.Vector as Vector
 import qualified Data.Vector.Generic.Base as GenericBaseVector
 import qualified Data.Vector.Generic.Mutable as GenericMutableVector
 import qualified Data.Vector.Unboxed as UnboxedVector
-
-import Database.Mongodb.Internal (RequestIdCounter, newRequestId)
 
 type GenericBaseVector = GenericBaseVector.Vector
 type GenericMutableVector = GenericMutableVector.MVector
@@ -92,8 +96,12 @@ data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
              | KillCursors !(UnboxedVector CursorId)
   deriving (Eq, Show)
 
+type RequestId = Int32
+
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
   deriving (Eq, Show)
+
+type ReplyId = Int32
 
 getInt32 :: Get Int32
 getInt32 = fmap fromIntegral getWord32le
@@ -149,32 +157,22 @@ putRequest (KillCursors is) = do
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
 
-putRequestMessage :: RequestIdCounter -> Request -> IO (Int32, Put)
-putRequestMessage counter rq = do
-  requestId <- newRequestId counter
-  fmap (requestId,) $ return $ do
-    let bytes = runPut $ putRequest rq
+getReply :: Get Reply
+getReply = do
+    f  <- fmap BitSet $ getInt32
+    i  <- fmap CursorId $ getInt64
+    s  <- fmap Skip getInt32
+    r  <- fmap Return getInt32
+    ds <- Vector.replicateM (fromIntegral r) getDocument
+    return $ Reply f i s r ds
+
+putRequestMessage :: (RequestId, Request) -> Put
+putRequestMessage (requestId, request) = do
     -- Size of message header and body
     putInt64 $ 8 + 4 + 4 + LazyByteString.length bytes
     putInt32 requestId
     putInt32 0
     putLazyByteString bytes
+  where
+    bytes = runPut $ putRequest request
 {-# INLINE putRequestMessage #-}
-
-getReplyMessage :: Get (Int32, Reply)
-getReplyMessage = do
-  -- Message header
-  void $ getInt64
-  void $ getInt32
-  responseId <- getInt32
-  opCode <- getInt32
-  unless (opCode == OP_REPLY) $ fail $ "getReplyMessage: Expected OP_REPLY, got " <> show opCode
-
-  -- Message body
-  f <- fmap BitSet $ getInt32
-  i <- fmap CursorId $ getInt64
-  s <- fmap Skip getInt32
-  r <- fmap Return getInt32
-  ds <- Vector.replicateM (fromIntegral r) getDocument
-  return $ (responseId, Reply f i s r ds)
-{-# INLINE getReplyMessage #-}
