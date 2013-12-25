@@ -83,14 +83,17 @@ connect info = do
   return Connection { .. }
 
 close :: Connection -> IO ()
-close (Connection { conSocket }) = Socket.close conSocket
+close (Connection { conSocket, conReplyReader }) = do
+    -- FIXME(lebedev): how to deal with unfilled MVars in 'conReplyMap'?
+    killThread conReplyReader
+    Socket.close conSocket
 
 withConnection :: ConnectionInfo -> (Connection -> IO a) -> IO a
 withConnection info = bracket (connect info) close
 
 
--- A work-in-progress prototype of MongoDB "pipe".
-
+-- | A per-connection worker thread, which reads MongoDB messages from
+-- the socket and fills @MVar@s for the corresponding @RequestId@s.
 replyReader :: Socket.Socket -> IORef (Map RequestId (MVar Reply)) -> IO ()
 replyReader socket replyMapRef = do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
