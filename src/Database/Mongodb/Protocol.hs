@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
 
@@ -148,10 +149,10 @@ putRequest (KillCursors is) = do
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
 
-putRequestMessage :: RequestIdCounter -> Request -> IO Put
+putRequestMessage :: RequestIdCounter -> Request -> IO (Int32, Put)
 putRequestMessage counter rq = do
   requestId <- newRequestId counter
-  return $! do
+  fmap (requestId,) $ return $ do
     let bytes = runPut $ putRequest rq
     -- Size of message header and body
     putInt64 $ 8 + 4 + 4 + LazyByteString.length bytes
@@ -160,7 +161,7 @@ putRequestMessage counter rq = do
     putLazyByteString bytes
 {-# INLINE putRequestMessage #-}
 
-getReplyMessage :: Get Reply
+getReplyMessage :: Get (Int32, Reply)
 getReplyMessage = do
   -- Message header
   void $ getInt64
@@ -175,5 +176,5 @@ getReplyMessage = do
   s <- fmap Skip getInt32
   r <- fmap Return getInt32
   ds <- Vector.replicateM (fromIntegral r) getDocument
-  return $ Reply f i s r ds
+  return $ (responseId, Reply f i s r ds)
 {-# INLINE getReplyMessage #-}
