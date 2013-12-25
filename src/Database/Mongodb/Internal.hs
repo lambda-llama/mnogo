@@ -2,6 +2,7 @@
 
 module Database.Mongodb.Internal
   ( StrictByteString
+  , LazyByteString
   , RequestIdCounter(..)
   , ObjectIdCounter(..)
   , newRequestIdCounter
@@ -15,12 +16,14 @@ import Data.IORef (IORef, newIORef, atomicModifyIORef')
 import Data.Time.Clock.POSIX (getPOSIXTime)
 import System.Posix.Process (getProcessID)
 import System.Random (Random(..), randomIO)
+import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.ByteString.Char8 as StrictByteString
 
 import Data.Bson (ObjectId(..))
 import Data.Word.Word24 (Word24)
 
 type StrictByteString = StrictByteString.ByteString
+type LazyByteString = LazyByteString.ByteString
 
 newtype RequestIdCounter = RequestIdCounter { unRequestIdCounter :: IORef Int32 }
 newtype ObjectIdCounter = ObjectIdCounter { unObjectIdCounter :: IORef Word24 }
