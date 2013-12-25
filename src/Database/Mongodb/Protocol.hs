@@ -8,7 +8,7 @@
 module Database.Mongodb.Protocol
     ( Request
     , RequestId
-    , ReplyHeader(..)
+    , MessageHeader(..)
     , Reply
     , ReplyId
     , putRequestMessage
@@ -101,14 +101,14 @@ data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
 
 type RequestId = Int32
 
-data ReplyHeader = ReplyHeader { rhSize      :: Int32
-                               , rhRequestId :: RequestId
-                               , rhTo        :: Int32
-                               , rhOpCode    :: Int32
+data MessageHeader = MessageHeader { rhSize       :: Int32
+                               , rhRequestId  :: RequestId
+                               , rhResponseTo :: Int32
+                               , rhOpCode     :: Int32
                                }
 
-instance Binary ReplyHeader where
-    get = getReplyHeader
+instance Binary MessageHeader where
+    get = getMessageHeader
     put = undefined
 
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
@@ -174,16 +174,16 @@ putRequest (KillCursors is) = do
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
 
-getReplyHeader :: Get ReplyHeader
-getReplyHeader = do
+getMessageHeader :: Get MessageHeader
+getMessageHeader = do
     rhSize <- getInt32
     rhRequestId <- getInt32
-    rhTo <- getInt32
+    rhResponseTo <- getInt32
     rhOpCode <- getInt32
     unless (rhOpCode == OP_REPLY) $
         fail $ "getReplyMessage: Expected OP_REPLY, got " <> show rhOpCode
-    return $ ReplyHeader { .. }
-{-# INLINE getReplyHeader #-}
+    return $ MessageHeader { .. }
+{-# INLINE getMessageHeader #-}
 
 getReply :: Get Reply
 getReply = do

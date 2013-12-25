@@ -35,7 +35,7 @@ import Database.Mongodb.Internal (StrictByteString,
                                   RequestIdCounter, ObjectIdCounter,
                                   newRequestIdCounter, newObjectIdCounter,
                                   newRequestId)
-import Database.Mongodb.Protocol (Request, RequestId, ReplyHeader(..), Reply,
+import Database.Mongodb.Protocol (Request, RequestId, MessageHeader(..), Reply,
                                   putRequestMessage)
 
 type Host = StrictByteString
@@ -100,10 +100,10 @@ replyReader :: IO.Handle -> IORef (Map RequestId (MVar Reply)) -> IO ()
 replyReader h replyMapRef = do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
     -- IO monad.
-    (ReplyHeader { .. }) <- decode <$> LazyByteString.hGet h headerSize
+    (MessageHeader { .. }) <- decode <$> LazyByteString.hGet h headerSize
     reply <- decode <$> LazyByteString.hGet h (fromIntegral rhSize - headerSize)
     replyMap <- readIORef replyMapRef
-    case Map.lookup rhRequestId replyMap of
+    case Map.lookup rhResponseTo replyMap of
         Just replyMVar -> putMVar replyMVar reply
         Nothing -> return ()  -- Ignore unknown requests.
   where
