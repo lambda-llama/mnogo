@@ -1,24 +1,27 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TupleSections #-}
 
 module Database.Mongodb.Protocol
     ( Request
     , RequestId
+    , ReplyHeader(..)
     , Reply
     , ReplyId
-    , getInt32
-    , getReply
     , putRequestMessage
     ) where
 
 #include "protocol.h"
 
+import Control.Monad (unless)
 import Data.Int (Int32, Int64)
+import Data.Monoid ((<>))
 import qualified Data.ByteString.Lazy as LazyByteString
 
+import Data.Binary (Binary(..))
 import Data.Binary.Put (Put, runPut, putWord32le, putWord64le, putLazyByteString)
 import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
@@ -98,8 +101,22 @@ data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
 
 type RequestId = Int32
 
+data ReplyHeader = ReplyHeader { rhSize      :: Int32
+                               , rhRequestId :: RequestId
+                               , rhTo        :: Int32
+                               , rhOpCode    :: Int32
+                               }
+
+instance Binary ReplyHeader where
+    get = getReplyHeader
+    put = undefined
+
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
   deriving (Eq, Show)
+
+instance Binary Reply where
+    get = getReply
+    put = undefined
 
 type ReplyId = Int32
 
@@ -157,6 +174,17 @@ putRequest (KillCursors is) = do
   UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
 
+getReplyHeader :: Get ReplyHeader
+getReplyHeader = do
+    rhSize <- getInt32
+    rhRequestId <- getInt32
+    rhTo <- getInt32
+    rhOpCode <- getInt32
+    unless (rhOpCode == OP_REPLY) $
+        fail $ "getReplyMessage: Expected OP_REPLY, got " <> show rhOpCode
+    return $ ReplyHeader { .. }
+{-# INLINE getReplyHeader #-}
+
 getReply :: Get Reply
 getReply = do
     f  <- fmap BitSet $ getInt32
@@ -165,6 +193,7 @@ getReply = do
     r  <- fmap Return getInt32
     ds <- Vector.replicateM (fromIntegral r) getDocument
     return $ Reply f i s r ds
+{-# INLINE getReply #-}
 
 putRequestMessage :: (RequestId, Request) -> Put
 putRequestMessage (requestId, request) = do
