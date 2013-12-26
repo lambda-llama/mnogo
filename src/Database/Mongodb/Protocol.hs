@@ -8,7 +8,8 @@
 {-# LANGUAGE TupleSections #-}
 
 module Database.Mongodb.Protocol
-    ( Request
+    ( Request(..)
+    , OpCode(..)
     , RequestId
     , MessageHeader(..)
     , Reply
@@ -183,11 +184,12 @@ instance Request KillCursors where
 
 type RequestId = Int32
 
-data MessageHeader = MessageHeader { rhMessageLength :: Int32
-                                   , rhRequestId     :: RequestId
-                                   , rhResponseTo    :: Int32
-                                   , rhOpCode        :: Int32
-                                   }
+data MessageHeader = MessageHeader
+    { rhMessageLength :: Int32
+    , rhRequestId     :: RequestId
+    , rhResponseTo    :: Int32
+    , rhOpCode        :: OpCode
+    }
 
 instance Binary MessageHeader where
     get = getMessageHeader
@@ -223,7 +225,7 @@ getMessageHeader = do
     rhMessageLength <- getInt32
     rhRequestId <- getInt32
     rhResponseTo <- getInt32
-    rhOpCode <- getInt32
+    rhOpCode <- fmap OpCode getInt32
     unless (rhOpCode == OP_REPLY) $
         fail $ "getReplyMessage: Expected OP_REPLY, got " <> show rhOpCode
     return $ MessageHeader { .. }
@@ -234,7 +236,7 @@ putMessageHeader (MessageHeader { .. }) = do
     putInt32 rhMessageLength
     putInt32 rhRequestId
     putInt32 rhResponseTo
-    putInt32 rhOpCode
+    putInt32 $ unOpCode rhOpCode
 {-# INLINE putMessageHeader #-}
 
 getReply :: Get Reply

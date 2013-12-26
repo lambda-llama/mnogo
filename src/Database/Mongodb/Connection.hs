@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -21,6 +22,7 @@ import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar,
                                 withMVar, putMVar)
 import Control.Exception (bracket)
 import Data.Binary (decode, encode)
+import Data.Binary.Put (runPut)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Map (Map)
 import Data.Word (Word16)
@@ -29,13 +31,14 @@ import qualified Data.ByteString.Lazy as LazyByteString
 import qualified Data.ByteString.Char8 as StrictByteString
 import qualified System.IO as IO
 
+import Data.Tagged (Tagged, untag)
 import qualified Network.Socket as Socket
 
 import Database.Mongodb.Internal (StrictByteString,
                                   RequestIdCounter, ObjectIdCounter,
                                   newRequestIdCounter, newObjectIdCounter,
                                   newRequestId)
-import Database.Mongodb.Protocol (Request, RequestId, MessageHeader(..), Reply)
+import Database.Mongodb.Protocol (Request(..), RequestId, MessageHeader(..), Reply, OpCode)
 
 type Host = StrictByteString
 type Port = Word16  -- FIXME(lebedev): why only 16 bits?
@@ -111,17 +114,17 @@ replyReader h replyMapRef = forever $ do
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
 
-sendRequest :: Connection -> Request -> IO (MVar Reply)
+sendRequest :: forall request. Request request => Connection -> request -> IO (MVar Reply)
 sendRequest (Connection { .. }) request = do
     requestId <- newRequestId conRidCounter
     replyMVar <- newEmptyMVar
     withMVar conRequestMVar $ \_ ->
-        let body     = encode request
+        let body     = runPut $ putRequest request
             bodySize = fromIntegral $ LazyByteString.length body
             header   = MessageHeader { rhMessageLength = bodySize + headerSize
                                      , rhRequestId = requestId
                                      , rhResponseTo = 0
-                                     , rhOpCode = 0
+                                     , rhOpCode = untag (opCode :: Tagged request OpCode)
                                      }
         in do
             LazyByteString.hPut conHandle $ encode header
