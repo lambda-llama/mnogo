@@ -178,10 +178,6 @@ instance Request KillCursors where
         UnboxedVector.forM_ is (putInt64 . unCursorId)
     {-# INLINE putRequest #-}
 
--- instance Binary Request where
---     get = undefined
---     put = putRequest
-
 type RequestId = Int32
 
 data MessageHeader = MessageHeader
