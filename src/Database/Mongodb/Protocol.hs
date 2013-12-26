@@ -40,30 +40,30 @@ type UnboxedVector = UnboxedVector.Vector
 type UnboxedMutableVector = UnboxedVector.MVector
 
 newtype Selector = Selector { unSelector :: Document }
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 newtype UpdateSpec = UpdateSpec { unUpdateSpec :: Document }
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 newtype Skip = Skip { unSkip :: Int32 }
-  deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
+    deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
 
 newtype Return = Return { unReturn :: Int32 }
-  deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
+    deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
 
 newtype FullCollection = FullCollection { unFullCollection :: Text }
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 newtype CursorId = CursorId { unCursorId :: Int64 }
-  deriving (Eq, Show, GenericBaseVector UnboxedVector,
+    deriving (Eq, Show, GenericBaseVector UnboxedVector,
             GenericMutableVector UnboxedMutableVector, Unbox)
 
 data UpdateFlag = Upsert
                 | MultiUpdate
-  deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum)
 
 data InsertFlag = ContinueOnError
-  deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum)
 
 data QueryFlag = TailableCursor
                | SlaveOk
@@ -72,16 +72,16 @@ data QueryFlag = TailableCursor
                | AwaitData
                | Exhaust
                | Partial
-  deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum)
 
 data DeleteFlag = SingleRemove
-  deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum)
 
 data ReplyFlag = CursorNotFound
                | QueryFailure
                | ShardConfigStale
                | AwaitCapable
-  deriving (Eq, Show, Enum)
+    deriving (Eq, Show, Enum)
 
 type UpdateFlags = BitSet Int32 UpdateFlag
 type InsertFlags = BitSet Int32 InsertFlag
@@ -96,7 +96,7 @@ data Request
     | GetMore !FullCollection !Return !CursorId
     | Delete !FullCollection !DeleteFlags !Selector
     | KillCursors !(UnboxedVector CursorId)
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 instance Binary Request where
     get = undefined
@@ -115,7 +115,7 @@ instance Binary MessageHeader where
     put = putMessageHeader
 
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
-  deriving (Eq, Show)
+    deriving (Eq, Show)
 
 instance Binary Reply where
     get = getReply
@@ -141,40 +141,40 @@ putInt64 = putWord64le . fromIntegral
 
 putRequest :: Request -> Put
 putRequest (Update c f s u ) = do
-  putInt32 OP_UPDATE
-  putCString $ unFullCollection c
-  putInt32 $ getBits f
-  putDocument $ unSelector s
-  putDocument $ unUpdateSpec u
+    putInt32 OP_UPDATE
+    putCString $ unFullCollection c
+    putInt32 $ getBits f
+    putDocument $ unSelector s
+    putDocument $ unUpdateSpec u
 putRequest (Insert c f ds) = do
-  putInt32 OP_UPDATE
-  putCString $ unFullCollection c
-  putInt32 $ getBits f
-  Vector.forM_ ds putDocument
+    putInt32 OP_UPDATE
+    putCString $ unFullCollection c
+    putInt32 $ getBits f
+    Vector.forM_ ds putDocument
 putRequest (Query c f s r d) = do
-  putInt32 OP_QUERY
-  putCString $ unFullCollection c
-  putInt32 $ getBits f
-  putInt32 $ unSkip s
-  putInt32 $ unReturn r
-  putDocument $ unSelector d
+    putInt32 OP_QUERY
+    putCString $ unFullCollection c
+    putInt32 $ getBits f
+    putInt32 $ unSkip s
+    putInt32 $ unReturn r
+    putDocument $ unSelector d
 putRequest (GetMore c r i) = do
-  putInt32 OP_GET_MORE
-  putInt32 0
-  putCString $ unFullCollection c
-  putInt32 $ unReturn r
-  putInt64 $ unCursorId i
+    putInt32 OP_GET_MORE
+    putInt32 0
+    putCString $ unFullCollection c
+    putInt32 $ unReturn r
+    putInt64 $ unCursorId i
 putRequest (Delete c f s) = do
-  putInt32 OP_DELETE
-  putInt32 0
-  putCString $ unFullCollection c
-  putInt32 $ getBits f
-  putDocument $ unSelector s
+    putInt32 OP_DELETE
+    putInt32 0
+    putCString $ unFullCollection c
+    putInt32 $ getBits f
+    putDocument $ unSelector s
 putRequest (KillCursors is) = do
-  putInt32 OP_KILL_CURSORS
-  putInt32 0
-  putInt32 $ fromIntegral $ UnboxedVector.length is
-  UnboxedVector.forM_ is (putInt64 . unCursorId)
+    putInt32 OP_KILL_CURSORS
+    putInt32 0
+    putInt32 $ fromIntegral $ UnboxedVector.length is
+    UnboxedVector.forM_ is (putInt64 . unCursorId)
 {-# INLINE putRequest #-}
 
 getMessageHeader :: Get MessageHeader
