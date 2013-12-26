@@ -40,6 +40,8 @@ import Database.Mongodb.Protocol (Request, RequestId, MessageHeader(..), Reply)
 type Host = StrictByteString
 type Port = Word16  -- FIXME(lebedev): why only 16 bits?
 
+type MapRef = IORef (Map RequestId (MVar Reply))
+
 data ConnectionInfo = ConnectionInfoInet !Host !Port
                     | ConnectionInfoUnix !StrictByteString
 
@@ -57,7 +59,7 @@ data Connection
                  , conOidCounter  :: !ObjectIdCounter
                  , conHandle      :: !IO.Handle
                  , conRequestMVar :: MVar Bool
-                 , conReplyMapRef :: IORef (Map RequestId (MVar Reply))
+                 , conReplyMapRef :: MapRef
                  , conReplyReader :: ThreadId
                  }
 
@@ -95,7 +97,7 @@ withConnection info = bracket (connect info) close
 
 -- | A per-connection worker thread, which reads MongoDB messages from
 -- the handle and fills @MVar@s for the corresponding @RequestId@s.
-replyReader :: IO.Handle -> IORef (Map RequestId (MVar Reply)) -> IO ()
+replyReader :: IO.Handle -> MapRef -> IO ()
 replyReader h replyMapRef = forever $ do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
     -- IO monad.
