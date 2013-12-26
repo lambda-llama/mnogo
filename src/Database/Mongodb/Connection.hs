@@ -116,21 +116,19 @@ replyReader h replyMapRef = forever $ do
 
 sendRequest :: forall request. Request request => Connection -> request -> IO (MVar Reply)
 sendRequest (Connection { .. }) request = do
-    requestId <- newRequestId conRidCounter
+    rhRequestId <- newRequestId conRidCounter
     replyMVar <- newEmptyMVar
     withMVar conRequestMVar $ \_ ->
         let body     = runPut $ putRequest request
             bodySize = fromIntegral $ LazyByteString.length body
-            header   = MessageHeader { rhMessageLength = bodySize + headerSize
-                                     , rhRequestId = requestId
-                                     , rhResponseTo = 0
-                                     , rhOpCode = untag (opCode :: Tagged request OpCode)
-                                     }
+            rhMessageLength = bodySize + headerSize
+            rhOpCode = untag (opCode :: Tagged request OpCode)
+            header   = MessageHeader { rhResponseTo = 0, .. }
         in do
             LazyByteString.hPut conHandle $ encode header
             LazyByteString.hPut conHandle body
             atomicModifyIORef' conReplyMapRef $ \m ->
-                (Map.insert requestId replyMVar m, ())
+                (Map.insert rhRequestId replyMVar m, ())
             return replyMVar
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
