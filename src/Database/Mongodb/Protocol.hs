@@ -185,10 +185,10 @@ instance Request KillCursors where
 type RequestId = Int32
 
 data MessageHeader = MessageHeader
-    { rhMessageLength :: Int32
-    , rhRequestId     :: RequestId
-    , rhResponseTo    :: Int32
-    , rhOpCode        :: OpCode
+    { rhMessageLength :: !Int32
+    , rhRequestId     :: !RequestId
+    , rhResponseTo    :: !Int32
+    , rhOpCode        :: !OpCode
     }
 
 instance Binary MessageHeader where
