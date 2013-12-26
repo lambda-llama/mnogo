@@ -14,6 +14,7 @@ module Database.Mongodb.Connection
 
 #include "protocol.h"
 
+import Control.Monad (forever)
 import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar,
@@ -97,7 +98,7 @@ withConnection info = bracket (connect info) close
 -- | A per-connection worker thread, which reads MongoDB messages from
 -- the handle and fills @MVar@s for the corresponding @RequestId@s.
 replyReader :: IO.Handle -> IORef (Map RequestId (MVar Reply)) -> IO ()
-replyReader h replyMapRef = do
+replyReader h replyMapRef = forever $ do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
     -- IO monad.
     (MessageHeader { .. }) <- decode <$> LazyByteString.hGet h headerSize
