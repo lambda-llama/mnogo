@@ -1,6 +1,8 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
@@ -25,6 +27,7 @@ import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
 import Data.Bson (Document)
 import Data.Bson.Binary (putCString, putDocument, getDocument)
+import Data.Tagged (Tagged)
 import Data.Text (Text)
 import Data.Vector (Vector)
 import Data.Vector.Unboxed (Unbox)
@@ -38,6 +41,9 @@ type GenericMutableVector = GenericMutableVector.MVector
 
 type UnboxedVector = UnboxedVector.Vector
 type UnboxedMutableVector = UnboxedVector.MVector
+
+newtype OpCode = OpCode { unOpCode :: Int32 }
+    deriving (Eq, Ord, Show, Num, Enum, Real, Integral)
 
 newtype Selector = Selector { unSelector :: Document }
     deriving (Eq, Show)
@@ -89,18 +95,91 @@ type QueryFlags = BitSet Int32 QueryFlag
 type DeleteFlags = BitSet Int32 DeleteFlag
 type ReplyFlags = BitSet Int32 ReplyFlag
 
-data Request
-    = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
-    | Insert !FullCollection !InsertFlags !(Vector Document)
-    | Query !FullCollection !QueryFlags !Skip !Return !Selector
-    | GetMore !FullCollection !Return !CursorId
-    | Delete !FullCollection !DeleteFlags !Selector
-    | KillCursors !(UnboxedVector CursorId)
+class Request rq where
+    type ResponseExpected rq :: Bool
+    opCode :: Tagged rq OpCode
+    putRequest :: rq -> Put
+
+data Update = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
     deriving (Eq, Show)
 
-instance Binary Request where
-    get = undefined
-    put = putRequest
+data Insert = Insert !FullCollection !InsertFlags !(Vector Document)
+    deriving (Eq, Show)
+
+data Query = Query !FullCollection !QueryFlags !Skip !Return !Selector
+    deriving (Eq, Show)
+
+data GetMore = GetMore !FullCollection !Return !CursorId
+    deriving (Eq, Show)
+
+data Delete = Delete !FullCollection !DeleteFlags !Selector
+    deriving (Eq, Show)
+
+data KillCursors = KillCursors !(UnboxedVector CursorId)
+    deriving (Eq, Show)
+
+instance Request Update where
+    type ResponseExpected Update = False
+    opCode = OP_UPDATE
+    putRequest (Update c f s u ) = do
+        putCString $ unFullCollection c
+        putInt32 $ getBits f
+        putDocument $ unSelector s
+        putDocument $ unUpdateSpec u
+    {-# INLINE putRequest #-}
+
+instance Request Insert where
+    type ResponseExpected Insert = False
+    opCode = OP_INSERT
+    putRequest (Insert c f ds) = do
+        putCString $ unFullCollection c
+        putInt32 $ getBits f
+        Vector.forM_ ds putDocument
+    {-# INLINE putRequest #-}
+
+instance Request Query where
+    type ResponseExpected Query = True
+    opCode = OP_QUERY
+    putRequest (Query c f s r d) = do
+        putCString $ unFullCollection c
+        putInt32 $ getBits f
+        putInt32 $ unSkip s
+        putInt32 $ unReturn r
+        putDocument $ unSelector d
+    {-# INLINE putRequest #-}
+
+instance Request GetMore where
+    type ResponseExpected GetMore = True
+    opCode = OP_GET_MORE
+    putRequest (GetMore c r i) = do
+        putInt32 0
+        putCString $ unFullCollection c
+        putInt32 $ unReturn r
+        putInt64 $ unCursorId i
+    {-# INLINE putRequest #-}
+
+instance Request Delete where
+    type ResponseExpected Delete = False
+    opCode = OP_DELETE
+    putRequest (Delete c f s) = do
+        putInt32 0
+        putCString $ unFullCollection c
+        putInt32 $ getBits f
+        putDocument $ unSelector s
+    {-# INLINE putRequest #-}
+
+instance Request KillCursors where
+    type ResponseExpected KillCursors = False
+    opCode = OP_KILL_CURSORS
+    putRequest (KillCursors is) = do
+        putInt32 0
+        putInt32 $ fromIntegral $ UnboxedVector.length is
+        UnboxedVector.forM_ is (putInt64 . unCursorId)
+    {-# INLINE putRequest #-}
+
+-- instance Binary Request where
+--     get = undefined
+--     put = putRequest
 
 type RequestId = Int32
 
@@ -138,44 +217,6 @@ putInt32 = putWord32le . fromIntegral
 putInt64 :: Int64 -> Put
 putInt64 = putWord64le . fromIntegral
 {-# INLINE putInt64 #-}
-
-putRequest :: Request -> Put
-putRequest (Update c f s u ) = do
-    putInt32 OP_UPDATE
-    putCString $ unFullCollection c
-    putInt32 $ getBits f
-    putDocument $ unSelector s
-    putDocument $ unUpdateSpec u
-putRequest (Insert c f ds) = do
-    putInt32 OP_UPDATE
-    putCString $ unFullCollection c
-    putInt32 $ getBits f
-    Vector.forM_ ds putDocument
-putRequest (Query c f s r d) = do
-    putInt32 OP_QUERY
-    putCString $ unFullCollection c
-    putInt32 $ getBits f
-    putInt32 $ unSkip s
-    putInt32 $ unReturn r
-    putDocument $ unSelector d
-putRequest (GetMore c r i) = do
-    putInt32 OP_GET_MORE
-    putInt32 0
-    putCString $ unFullCollection c
-    putInt32 $ unReturn r
-    putInt64 $ unCursorId i
-putRequest (Delete c f s) = do
-    putInt32 OP_DELETE
-    putInt32 0
-    putCString $ unFullCollection c
-    putInt32 $ getBits f
-    putDocument $ unSelector s
-putRequest (KillCursors is) = do
-    putInt32 OP_KILL_CURSORS
-    putInt32 0
-    putInt32 $ fromIntegral $ UnboxedVector.length is
-    UnboxedVector.forM_ is (putInt64 . unCursorId)
-{-# INLINE putRequest #-}
 
 getMessageHeader :: Get MessageHeader
 getMessageHeader = do

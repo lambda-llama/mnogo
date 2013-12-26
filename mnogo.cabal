@@ -31,6 +31,7 @@ Library
       , network                    == 2.4.*
       , mtl                        == 2.1.*
       , text                       == 0.11.*
+      , tagged                     == 0.7.*
       , word24                     == 1.0.*
       , bresson                    == 0.0.*
       , bitset                     == 1.4.*
