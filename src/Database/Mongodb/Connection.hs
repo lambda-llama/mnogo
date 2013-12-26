@@ -20,8 +20,7 @@ import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar,
                                 withMVar, putMVar)
 import Control.Exception (bracket)
-import Data.Binary (decode)
-import Data.Binary.Put (runPut)
+import Data.Binary (decode, encode)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Map (Map)
 import Data.Word (Word16)
@@ -36,8 +35,7 @@ import Database.Mongodb.Internal (StrictByteString,
                                   RequestIdCounter, ObjectIdCounter,
                                   newRequestIdCounter, newObjectIdCounter,
                                   newRequestId)
-import Database.Mongodb.Protocol (Request, RequestId, MessageHeader(..), Reply,
-                                  putRequestMessage)
+import Database.Mongodb.Protocol (Request, RequestId, MessageHeader(..), Reply)
 
 type Host = StrictByteString
 type Port = Word16  -- FIXME(lebedev): why only 16 bits?
@@ -102,7 +100,8 @@ replyReader h replyMapRef = forever $ do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
     -- IO monad.
     (MessageHeader { .. }) <- decode <$> LazyByteString.hGet h headerSize
-    reply <- decode <$> LazyByteString.hGet h (fromIntegral rhSize - headerSize)
+    reply <- decode <$> (LazyByteString.hGet h $
+                         fromIntegral rhMessageLength - headerSize)
     replyMap <- readIORef replyMapRef
     case Map.lookup rhResponseTo replyMap of
         Just replyMVar -> putMVar replyMVar reply
@@ -114,9 +113,19 @@ sendRequest :: Connection -> Request -> IO (MVar Reply)
 sendRequest (Connection { .. }) request = do
     requestId <- newRequestId conRidCounter
     replyMVar <- newEmptyMVar
-    withMVar conRequestMVar $ \_ -> do
-        LazyByteString.hPut conHandle . runPut $
-            putRequestMessage (requestId, request)
-        atomicModifyIORef' conReplyMapRef $ \m ->
-            (Map.insert requestId replyMVar m, ())
-        return replyMVar
+    withMVar conRequestMVar $ \_ ->
+        let body     = encode request
+            bodySize = fromIntegral $ LazyByteString.length body
+            header   = MessageHeader { rhMessageLength = bodySize + headerSize
+                                     , rhRequestId = requestId
+                                     , rhResponseTo = 0
+                                     , rhOpCode = 0
+                                     }
+        in do
+            LazyByteString.hPut conHandle $ encode header
+            LazyByteString.hPut conHandle body
+            atomicModifyIORef' conReplyMapRef $ \m ->
+                (Map.insert requestId replyMVar m, ())
+            return replyMVar
+  where
+    headerSize = 4 * 4  -- sizeof(int32) * 4.

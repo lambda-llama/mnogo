@@ -11,7 +11,6 @@ module Database.Mongodb.Protocol
     , MessageHeader(..)
     , Reply
     , ReplyId
-    , putRequestMessage
     ) where
 
 #include "protocol.h"
@@ -19,10 +18,9 @@ module Database.Mongodb.Protocol
 import Control.Monad (unless)
 import Data.Int (Int32, Int64)
 import Data.Monoid ((<>))
-import qualified Data.ByteString.Lazy as LazyByteString
 
 import Data.Binary (Binary(..))
-import Data.Binary.Put (Put, runPut, putWord32le, putWord64le, putLazyByteString)
+import Data.Binary.Put (Put, putWord32le, putWord64le)
 import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
 import Data.Bson (Document)
@@ -91,25 +89,30 @@ type QueryFlags = BitSet Int32 QueryFlag
 type DeleteFlags = BitSet Int32 DeleteFlag
 type ReplyFlags = BitSet Int32 ReplyFlag
 
-data Request = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
-             | Insert !FullCollection !InsertFlags !(Vector Document)
-             | Query !FullCollection !QueryFlags !Skip !Return !Selector
-             | GetMore !FullCollection !Return !CursorId
-             | Delete !FullCollection !DeleteFlags !Selector
-             | KillCursors !(UnboxedVector CursorId)
+data Request
+    = Update !FullCollection !UpdateFlags !Selector !UpdateSpec
+    | Insert !FullCollection !InsertFlags !(Vector Document)
+    | Query !FullCollection !QueryFlags !Skip !Return !Selector
+    | GetMore !FullCollection !Return !CursorId
+    | Delete !FullCollection !DeleteFlags !Selector
+    | KillCursors !(UnboxedVector CursorId)
   deriving (Eq, Show)
+
+instance Binary Request where
+    get = undefined
+    put = putRequest
 
 type RequestId = Int32
 
-data MessageHeader = MessageHeader { rhSize       :: Int32
-                               , rhRequestId  :: RequestId
-                               , rhResponseTo :: Int32
-                               , rhOpCode     :: Int32
-                               }
+data MessageHeader = MessageHeader { rhMessageLength :: Int32
+                                   , rhRequestId     :: RequestId
+                                   , rhResponseTo    :: Int32
+                                   , rhOpCode        :: Int32
+                                   }
 
 instance Binary MessageHeader where
     get = getMessageHeader
-    put = undefined
+    put = putMessageHeader
 
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
   deriving (Eq, Show)
@@ -176,7 +179,7 @@ putRequest (KillCursors is) = do
 
 getMessageHeader :: Get MessageHeader
 getMessageHeader = do
-    rhSize <- getInt32
+    rhMessageLength <- getInt32
     rhRequestId <- getInt32
     rhResponseTo <- getInt32
     rhOpCode <- getInt32
@@ -184,6 +187,14 @@ getMessageHeader = do
         fail $ "getReplyMessage: Expected OP_REPLY, got " <> show rhOpCode
     return $ MessageHeader { .. }
 {-# INLINE getMessageHeader #-}
+
+putMessageHeader :: MessageHeader -> Put
+putMessageHeader (MessageHeader { .. }) = do
+    putInt32 rhMessageLength
+    putInt32 rhRequestId
+    putInt32 rhResponseTo
+    putInt32 rhOpCode
+{-# INLINE putMessageHeader #-}
 
 getReply :: Get Reply
 getReply = do
@@ -194,14 +205,3 @@ getReply = do
     ds <- Vector.replicateM (fromIntegral r) getDocument
     return $ Reply f i s r ds
 {-# INLINE getReply #-}
-
-putRequestMessage :: (RequestId, Request) -> Put
-putRequestMessage (requestId, request) = do
-    -- Size of message header and body
-    putInt64 $ 8 + 4 + 4 + LazyByteString.length bytes
-    putInt32 requestId
-    putInt32 0
-    putLazyByteString bytes
-  where
-    bytes = runPut $ putRequest request
-{-# INLINE putRequestMessage #-}
