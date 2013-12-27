@@ -99,7 +99,7 @@ type DeleteFlags = BitSet Int32 DeleteFlag
 type ReplyFlags = BitSet Int32 ReplyFlag
 
 class Request rq where
-    type ResponseExpected rq :: Bool
+    type ReplyExpected rq :: Bool
     opCode :: Tagged rq OpCode
     putRequest :: rq -> Put
 
@@ -122,7 +122,7 @@ data KillCursors = KillCursors !(UnboxedVector CursorId)
     deriving (Eq, Show)
 
 instance Request Update where
-    type ResponseExpected Update = False
+    type ReplyExpected Update = False
     opCode = OP_UPDATE
     putRequest (Update c f s u ) = do
         putCString $ unFullCollection c
@@ -132,7 +132,7 @@ instance Request Update where
     {-# INLINE putRequest #-}
 
 instance Request Insert where
-    type ResponseExpected Insert = False
+    type ReplyExpected Insert = False
     opCode = OP_INSERT
     putRequest (Insert c f ds) = do
         putCString $ unFullCollection c
@@ -141,7 +141,7 @@ instance Request Insert where
     {-# INLINE putRequest #-}
 
 instance Request Query where
-    type ResponseExpected Query = True
+    type ReplyExpected Query = True
     opCode = OP_QUERY
     putRequest (Query c f s r d) = do
         putCString $ unFullCollection c
@@ -152,7 +152,7 @@ instance Request Query where
     {-# INLINE putRequest #-}
 
 instance Request GetMore where
-    type ResponseExpected GetMore = True
+    type ReplyExpected GetMore = True
     opCode = OP_GET_MORE
     putRequest (GetMore c r i) = do
         putInt32 0
@@ -162,7 +162,7 @@ instance Request GetMore where
     {-# INLINE putRequest #-}
 
 instance Request Delete where
-    type ResponseExpected Delete = False
+    type ReplyExpected Delete = False
     opCode = OP_DELETE
     putRequest (Delete c f s) = do
         putInt32 0
@@ -172,7 +172,7 @@ instance Request Delete where
     {-# INLINE putRequest #-}
 
 instance Request KillCursors where
-    type ResponseExpected KillCursors = False
+    type ReplyExpected KillCursors = False
     opCode = OP_KILL_CURSORS
     putRequest (KillCursors is) = do
         putInt32 0
