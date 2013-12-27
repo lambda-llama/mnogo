@@ -127,17 +127,16 @@ sendRequestWithReply :: forall rq. (Request rq, ReplyExpected rq ~ True)
                      => Connection -> rq -> IO (MVar Reply)
 sendRequestWithReply connection@(Connection { conReplyMapRef }) request = do
     replyMVar <- newEmptyMVar
-    withRequestLock connection $ do
-        requestId <- sendRequest connection request
-        atomicModifyIORef' conReplyMapRef $ \m ->
-            (Map.insert requestId replyMVar m, ())
+    requestId <- sendRequest connection request
+    atomicModifyIORef' conReplyMapRef $ \m ->
+        (Map.insert requestId replyMVar m, ())
     return replyMVar
 {-# INLINE sendRequestWithReply #-}
 
 sendRequestNoReply :: forall rq. (Request rq, ReplyExpected rq ~ False)
                    => Connection -> rq -> IO ()
-sendRequestNoReply connection request = do
-    withRequestLock connection $ void $ sendRequest connection request
+sendRequestNoReply connection request =
+    void $ sendRequest connection request
 {-# INLINE sendRequestNoReply #-}
 
 sendRequest :: forall rq. Request rq => Connection -> rq -> IO RequestId
