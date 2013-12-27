@@ -21,7 +21,7 @@ import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar,
                                 withMVar, putMVar)
 import Control.Exception (bracket)
-import Data.Binary (decode, encode)
+import Data.Binary.Get (runGet)
 import Data.Binary.Put (runPut)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Map (Map)
@@ -38,7 +38,8 @@ import Database.Mongodb.Internal (StrictByteString,
                                   RequestIdCounter, ObjectIdCounter,
                                   newRequestIdCounter, newObjectIdCounter,
                                   newRequestId)
-import Database.Mongodb.Protocol (Request(..), RequestId, MessageHeader(..), Reply, OpCode)
+import Database.Mongodb.Protocol (Request(..), RequestId, OpCode, MessageHeader(..),
+                                  Reply, getMessageHeader, putMessageHeader, getReply)
 
 type Host = StrictByteString
 type Port = Word16  -- FIXME(lebedev): why only 16 bits?
@@ -97,16 +98,16 @@ close (Connection { conHandle, conReplyReader }) = do
 withConnection :: ConnectionInfo -> (Connection -> IO a) -> IO a
 withConnection info = bracket (connect info) close
 
-
 -- | A per-connection worker thread, which reads MongoDB messages from
 -- the handle and fills @MVar@s for the corresponding @RequestId@s.
 replyReader :: IO.Handle -> ReplyMapRef -> IO ()
 replyReader h replyMapRef = forever $ do
     -- FIXME(lebedev): this is unsafe, since 'fail == error' in the
     -- IO monad.
-    (MessageHeader { .. }) <- decode <$> LazyByteString.hGet h headerSize
-    reply <- decode <$> (LazyByteString.hGet h $
-                         fromIntegral rhMessageLength - headerSize)
+    (MessageHeader { .. }) <- runGet getMessageHeader <$>
+        LazyByteString.hGet h headerSize
+    reply <- runGet getReply <$>
+        (LazyByteString.hGet h $ fromIntegral rhMessageLength - headerSize)
     replyMap <- readIORef replyMapRef
     case Map.lookup rhResponseTo replyMap of
         Just replyMVar -> putMVar replyMVar reply
@@ -125,7 +126,7 @@ sendRequest (Connection { .. }) request = do
             rhOpCode = untag (opCode :: Tagged request OpCode)
             header   = MessageHeader { rhResponseTo = 0, .. }
         in do
-            LazyByteString.hPut conHandle $ encode header
+            LazyByteString.hPut conHandle $ runPut $ putMessageHeader header
             LazyByteString.hPut conHandle body
             atomicModifyIORef' conReplyMapRef $ \m ->
                 (Map.insert rhRequestId replyMVar m, ())

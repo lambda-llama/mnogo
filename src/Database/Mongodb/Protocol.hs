@@ -14,6 +14,9 @@ module Database.Mongodb.Protocol
     , MessageHeader(..)
     , Reply
     , ReplyId
+    , getMessageHeader
+    , putMessageHeader
+    , getReply
     ) where
 
 #include "protocol.h"
@@ -22,7 +25,6 @@ import Control.Monad (unless)
 import Data.Int (Int32, Int64)
 import Data.Monoid ((<>))
 
-import Data.Binary (Binary(..))
 import Data.Binary.Put (Put, putWord32le, putWord64le)
 import Data.Binary.Get (Get, getWord32le, getWord64le)
 import Data.BitSet.Generic (BitSet(..))
@@ -187,16 +189,8 @@ data MessageHeader = MessageHeader
     , rhOpCode        :: !OpCode
     }
 
-instance Binary MessageHeader where
-    get = getMessageHeader
-    put = putMessageHeader
-
 data Reply = Reply !ReplyFlags !CursorId !Skip !Return !(Vector Document)
     deriving (Eq, Show)
-
-instance Binary Reply where
-    get = getReply
-    put = undefined
 
 type ReplyId = Int32
 
