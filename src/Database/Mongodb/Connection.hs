@@ -118,11 +118,16 @@ replyReader h replyMapRef = forever $ do
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
 
+withRequestLock :: Connection -> IO a -> IO a
+withRequestLock Connection { conRequestMVar } =
+    withMVar conRequestMVar . const
+{-# INLINE withRequestLock #-}
+
 sendRequestWithReply :: forall rq. (Request rq, ReplyExpected rq ~ True)
                      => Connection -> rq -> IO (MVar Reply)
-sendRequestWithReply connection@(Connection { .. }) request = do
+sendRequestWithReply connection@(Connection { conReplyMapRef }) request = do
     replyMVar <- newEmptyMVar
-    withMVar conRequestMVar $ \_ -> do
+    withRequestLock connection $ do
         requestId <- sendRequest connection request
         atomicModifyIORef' conReplyMapRef $ \m ->
             (Map.insert requestId replyMVar m, ())
@@ -131,9 +136,8 @@ sendRequestWithReply connection@(Connection { .. }) request = do
 
 sendRequestNoReply :: forall rq. (Request rq, ReplyExpected rq ~ False)
                    => Connection -> rq -> IO ()
-sendRequestNoReply connection@(Connection { .. }) request = do
-    withMVar conRequestMVar $ \_ -> do
-        void $ sendRequest connection request
+sendRequestNoReply connection request = do
+    withRequestLock connection $ void $ sendRequest connection request
 {-# INLINE sendRequestNoReply #-}
 
 sendRequest :: forall rq. Request rq => Connection -> rq -> IO RequestId
