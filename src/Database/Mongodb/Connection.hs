@@ -126,12 +126,14 @@ sendRequestWithReply connection@(Connection { .. }) request = do
         atomicModifyIORef' conReplyMapRef $ \m ->
             (Map.insert requestId replyMVar m, ())
     return replyMVar
+{-# INLINE sendRequestWithReply #-}
 
 sendRequestNoReply :: forall rq. (Request rq, ReplyExpected rq ~ False)
                    => Connection -> rq -> IO ()
 sendRequestNoReply connection@(Connection { .. }) request = do
     withMVar conRequestMVar $ \_ -> do
         void $ sendRequest connection request
+{-# INLINE sendRequestNoReply #-}
 
 sendRequest :: forall rq. Request rq => Connection -> rq -> IO RequestId
 sendRequest (Connection { .. }) request = do
@@ -146,3 +148,4 @@ sendRequest (Connection { .. }) request = do
     return rhRequestId
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
+{-# INLINE sendRequest #-}
