@@ -122,9 +122,9 @@ sendRequestWithReply :: forall rq. (Request rq, ReplyExpected rq ~ True)
 sendRequestWithReply connection@(Connection { .. }) request = do
     replyMVar <- newEmptyMVar
     withMVar conRequestMVar $ \_ -> do
-        rhRequestId <- sendRequest connection request
+        requestId <- sendRequest connection request
         atomicModifyIORef' conReplyMapRef $ \m ->
-            (Map.insert rhRequestId replyMVar m, ())
+            (Map.insert requestId replyMVar m, ())
     return replyMVar
 
 sendRequestNoReply :: forall rq. (Request rq, ReplyExpected rq ~ False)
