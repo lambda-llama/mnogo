@@ -27,6 +27,7 @@ import Data.Binary.Get (runGet)
 import Data.Binary.Put (runPut)
 import Data.IORef (IORef, atomicModifyIORef', newIORef, readIORef)
 import Data.Map (Map)
+import Data.Monoid ((<>))
 import Data.Word (Word16)
 import qualified Data.Map as Map
 import qualified Data.ByteString.Lazy as LazyByteString
@@ -36,7 +37,7 @@ import qualified System.IO as IO
 import Data.Tagged (Tagged, untag)
 import qualified Network.Socket as Socket
 
-import Database.Mongodb.Internal (StrictByteString,
+import Database.Mongodb.Internal (StrictByteString, LazyByteString,
                                   RequestIdCounter, ObjectIdCounter,
                                   newRequestIdCounter, newObjectIdCounter,
                                   newRequestId)
@@ -137,15 +138,19 @@ sendRequestNoReply connection@(Connection { .. }) request = do
 
 sendRequest :: forall rq. Request rq => Connection -> rq -> IO RequestId
 sendRequest (Connection { .. }) request = do
-    rhRequestId <- newRequestId conRidCounter
-    let body     = runPut $ putRequest request
-        bodySize = fromIntegral $ LazyByteString.length body
-        rhMessageLength = bodySize + headerSize
-        rhOpCode = untag (opCode :: Tagged rq OpCode)
-        header   = MessageHeader { rhResponseTo = 0, .. }
-    LazyByteString.hPut conHandle $ runPut $ putMessageHeader header
-    LazyByteString.hPut conHandle body
-    return rhRequestId
-  where
-    headerSize = 4 * 4  -- sizeof(int32) * 4.
+    requestId <- newRequestId conRidCounter
+    LazyByteString.hPut conHandle $ formatRequest request requestId
+    return requestId
 {-# INLINE sendRequest #-}
+
+formatRequest :: forall rq. Request rq => rq -> RequestId -> LazyByteString
+formatRequest request rhRequestId = header <> body
+  where
+    body = runPut $ putRequest request
+    bodySize = fromIntegral $ LazyByteString.length body
+
+    headerSize = 4 * 4  -- sizeof(int32) * 4.
+    rhOpCode = untag (opCode :: Tagged rq OpCode)
+    rhMessageLength = bodySize + headerSize
+    header = runPut $ putMessageHeader $ MessageHeader { rhResponseTo = 0, .. }
+{-# INLINE formatRequest #-}
