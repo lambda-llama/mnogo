@@ -1,5 +1,7 @@
 {-# OPTIONS_GHC -funbox-strict-fields #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -15,7 +17,7 @@ module Database.Mongodb.Connection
 
 #include "protocol.h"
 
-import Control.Monad (forever)
+import Control.Monad (forever, void)
 import Control.Applicative ((<$>))
 import Control.Concurrent (ThreadId, forkIO, killThread)
 import Control.Concurrent.MVar (MVar, newMVar, newEmptyMVar,
@@ -115,21 +117,32 @@ replyReader h replyMapRef = forever $ do
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
 
-sendRequest :: forall request. Request request => Connection -> request -> IO (MVar Reply)
+sendRequestWithReply :: forall rq. (Request rq, ReplyExpected rq ~ True)
+                     => Connection -> rq -> IO (MVar Reply)
+sendRequestWithReply connection@(Connection { .. }) request = do
+    replyMVar <- newEmptyMVar
+    withMVar conRequestMVar $ \_ -> do
+        rhRequestId <- sendRequest connection request
+        atomicModifyIORef' conReplyMapRef $ \m ->
+            (Map.insert rhRequestId replyMVar m, ())
+    return replyMVar
+
+sendRequestNoReply :: forall rq. (Request rq, ReplyExpected rq ~ False)
+                   => Connection -> rq -> IO ()
+sendRequestNoReply connection@(Connection { .. }) request = do
+    withMVar conRequestMVar $ \_ -> do
+        void $ sendRequest connection request
+
+sendRequest :: forall rq. Request rq => Connection -> rq -> IO RequestId
 sendRequest (Connection { .. }) request = do
     rhRequestId <- newRequestId conRidCounter
-    replyMVar <- newEmptyMVar
-    withMVar conRequestMVar $ \_ ->
-        let body     = runPut $ putRequest request
-            bodySize = fromIntegral $ LazyByteString.length body
-            rhMessageLength = bodySize + headerSize
-            rhOpCode = untag (opCode :: Tagged request OpCode)
-            header   = MessageHeader { rhResponseTo = 0, .. }
-        in do
-            LazyByteString.hPut conHandle $ runPut $ putMessageHeader header
-            LazyByteString.hPut conHandle body
-            atomicModifyIORef' conReplyMapRef $ \m ->
-                (Map.insert rhRequestId replyMVar m, ())
-            return replyMVar
+    let body     = runPut $ putRequest request
+        bodySize = fromIntegral $ LazyByteString.length body
+        rhMessageLength = bodySize + headerSize
+        rhOpCode = untag (opCode :: Tagged rq OpCode)
+        header   = MessageHeader { rhResponseTo = 0, .. }
+    LazyByteString.hPut conHandle $ runPut $ putMessageHeader header
+    LazyByteString.hPut conHandle body
+    return rhRequestId
   where
     headerSize = 4 * 4  -- sizeof(int32) * 4.
